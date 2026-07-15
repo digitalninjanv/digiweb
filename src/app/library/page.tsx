@@ -38,6 +38,7 @@ export default function LibraryPage() {
   }, []);
 
   const handleDownload = async (file: ProductFile, purchase: PurchaseWithProduct) => {
+    const supabase = createClient();
     if (file.file_type === "text" && file.text_content) {
       const blob = new Blob([file.text_content], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
@@ -47,7 +48,6 @@ export default function LibraryPage() {
       a.click();
       URL.revokeObjectURL(url);
     } else if (file.file_url) {
-      const supabase = createClient();
       const { data } = await supabase.storage.from("product-files").createSignedUrl(file.file_url, 3600);
       if (data?.signedUrl) {
         window.open(data.signedUrl, "_blank");
@@ -56,7 +56,7 @@ export default function LibraryPage() {
       }
     }
     // Update download count
-    await supabase.createClient().from("purchases").update({ download_count: (purchase.download_count || 0) + 1 }).eq("id", purchase.id);
+    await supabase.from("purchases").update({ download_count: (purchase.download_count || 0) + 1 }).eq("id", purchase.id);
   };
 
   if (loading) {
