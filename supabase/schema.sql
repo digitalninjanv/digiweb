@@ -250,7 +250,8 @@ ALTER TABLE public.payment_methods ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Admin view all profiles" ON public.profiles FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' OR 
+  (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
 );
 
 -- Categories: public read, admin write
