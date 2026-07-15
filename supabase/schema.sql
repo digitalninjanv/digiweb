@@ -97,6 +97,7 @@ CREATE TABLE public.product_files (
   file_size BIGINT,
   mime_type TEXT,
   text_content TEXT,
+  order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
   sort_order INT DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

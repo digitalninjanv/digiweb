@@ -105,26 +105,31 @@ export default function LibraryPage() {
                 <p className="text-xs text-muted-foreground">Purchased {formatDateTime(purchase.created_at)}</p>
               </CardHeader>
               <CardContent className="space-y-3">
-                {purchase.product?.files && purchase.product.files.length > 0 ? (
-                  <div className="space-y-2">
-                    {purchase.product.files.map((file) => (
-                      <div key={file.id} className="flex items-center justify-between rounded-lg border p-2.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">{file.file_name}</p>
-                            {file.file_size && <p className="text-[10px] text-muted-foreground">{formatFileSize(file.file_size)}</p>}
+                {(() => {
+                  const visibleFiles = purchase.product?.files?.filter(
+                    (file: any) => !file.order_id || file.order_id === purchase.order_id
+                  ) || [];
+                  return visibleFiles.length > 0 ? (
+                    <div className="space-y-2">
+                      {visibleFiles.map((file) => (
+                        <div key={file.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium truncate">{file.file_name}</p>
+                              {file.file_size && <p className="text-[10px] text-muted-foreground">{formatFileSize(file.file_size)}</p>}
+                            </div>
                           </div>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 flex-shrink-0" onClick={() => handleDownload(file, purchase)}>
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 flex-shrink-0" onClick={() => handleDownload(file, purchase)}>
-                          <Download className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">No files available</p>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No files available</p>
+                  );
+                })()}
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span className="flex items-center gap-1"><Download className="h-3 w-3" /> {purchase.download_count} downloads</span>
                   {purchase.max_downloads && <span>Max: {purchase.max_downloads}</span>}

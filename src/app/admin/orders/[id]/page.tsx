@@ -20,6 +20,13 @@ export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [adminNotes, setAdminNotes] = useState("");
+  const [deliveredFiles, setDeliveredFiles] = useState<any[]>([]);
+
+  const fetchDeliveredFiles = async () => {
+    const supabase = createClient();
+    const { data } = await supabase.from("product_files").select("*").eq("order_id", params.id);
+    setDeliveredFiles(data || []);
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -29,6 +36,7 @@ export default function AdminOrderDetailPage() {
     supabase.from("order_items").select("*, product:products(*)").eq("order_id", params.id).then(({ data }) => {
       setItems((data as OrderItem[]) || []);
     });
+    fetchDeliveredFiles();
   }, [params.id]);
 
   const updateStatus = async (status: string) => {
@@ -63,15 +71,54 @@ export default function AdminOrderDetailPage() {
     toast.success("Notes saved");
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, productId: string) => {
     const file = e.target.files?.[0];
-    if (!file || !order) return;
+    if (!file || !order || !productId) return;
     const supabase = createClient();
-    const path = `order-files/${order.id}/${Date.now()}-${file.name}`;
-    const { data } = await supabase.storage.from("product-files").upload(path, file);
-    if (data) {
-      // Create a purchase record with the file
-      toast.success("File uploaded successfully");
+    toast.loading("Delivering custom file...", { id: "custom-file-deliver" });
+    try {
+      const path = `order-files/${order.id}/${Date.now()}-${file.name}`;
+      const { data, error: uploadError } = await supabase.storage
+        .from("product-files")
+        .upload(path, file);
+
+      if (uploadError) throw uploadError;
+
+      if (data) {
+        const { error: dbError } = await supabase.from("product_files").insert({
+          product_id: productId,
+          order_id: order.id,
+          file_name: file.name,
+          file_type: "upload",
+          file_url: data.path,
+          file_size: file.size,
+          mime_type: file.type
+        });
+
+        if (dbError) throw dbError;
+
+        toast.success("Custom file delivered successfully!", { id: "custom-file-deliver" });
+        fetchDeliveredFiles();
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to deliver custom file.", { id: "custom-file-deliver" });
+    }
+  };
+
+  const viewDeliveredFile = async (fileUrl: string) => {
+    const supabase = createClient();
+    toast.loading("Generating download link...", { id: "file-view" });
+    try {
+      const { data, error } = await supabase.storage.from("product-files").createSignedUrl(fileUrl, 3600);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank");
+        toast.dismiss("file-view");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to generate download link.", { id: "file-view" });
     }
   };
 
@@ -92,16 +139,59 @@ export default function AdminOrderDetailPage() {
           {/* Order Items */}
           <Card>
             <CardHeader><CardTitle className="text-base">Order Items</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="font-medium text-sm">{item.product_title}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+            <CardContent className="space-y-4">
+              {items.map((item) => {
+                const itemDelivered = deliveredFiles.filter((f) => f.product_id === item.product_id);
+                return (
+                  <div key={item.id} className="flex flex-col gap-3 rounded-xl border p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-sm">{item.product_title}</p>
+                        <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+                      </div>
+                      <span className="font-bold text-sm">{formatPrice(item.product_price * item.quantity)}</span>
+                    </div>
+
+                    {/* Deliver Custom File Section */}
+                    {item.product_id && (
+                      <div className="flex flex-col gap-2 mt-2 pt-3 border-t border-dashed border-border/60">
+                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Custom Product Delivery</p>
+                        
+                        {/* List already delivered files for this item */}
+                        {itemDelivered.length > 0 && (
+                          <div className="space-y-1.5 mb-2">
+                            {itemDelivered.map((file) => (
+                              <div key={file.id} className="flex items-center justify-between rounded-lg bg-accent/60 px-3 py-2 text-xs">
+                                <span className="truncate max-w-[240px] font-medium">{file.file_name}</span>
+                                <button
+                                  onClick={() => viewDeliveredFile(file.file_url)}
+                                  className="text-primary hover:underline flex items-center gap-1 ml-2 flex-shrink-0 font-medium"
+                                >
+                                  <Download className="h-3 w-3" /> Download
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex">
+                            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg" asChild>
+                              <span><Upload className="h-3.5 w-3.5" /> Upload Custom File</span>
+                            </Button>
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={(e) => handleFileUpload(e, item.product_id!)}
+                            />
+                          </label>
+                          <span className="text-[10px] text-muted-foreground">Deliver file for this item</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <span className="font-semibold">{formatPrice(item.product_price * item.quantity)}</span>
-                </div>
-              ))}
+                );
+              })}
               <Separator />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
@@ -121,18 +211,6 @@ export default function AdminOrderDetailPage() {
               </CardContent>
             </Card>
           )}
-
-          {/* Upload File for Order */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Deliver Files</CardTitle></CardHeader>
-            <CardContent>
-              <label className="inline-flex">
-                <Button variant="outline" className="gap-2" asChild><span><Upload className="h-4 w-4" /> Upload File</span></Button>
-                <input type="file" className="hidden" onChange={handleFileUpload} />
-              </label>
-              <p className="text-xs text-muted-foreground mt-2">Upload files to deliver to the customer.</p>
-            </CardContent>
-          </Card>
 
           {/* Admin Notes */}
           <Card>
