@@ -51,6 +51,7 @@ export function Header() {
     { href: "/", label: "Home" },
     { href: "/shop", label: "Shop" },
     ...(user ? [{ href: "/library", label: "Library" }] : []),
+    ...(profile?.role === "admin" ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
   const isActive = (href: string) => {
