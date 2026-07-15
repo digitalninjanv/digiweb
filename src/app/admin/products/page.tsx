@@ -19,10 +19,6 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
   const fetchProducts = () => {
     const supabase = createClient();
     supabase.from("products").select("*, category:categories(*)").order("created_at", { ascending: false }).then(({ data }) => {
@@ -30,6 +26,10 @@ export default function AdminProductsPage() {
       setLoading(false);
     });
   };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const handleDelete = async () => {
     if (!deleteId) return;

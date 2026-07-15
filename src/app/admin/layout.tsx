@@ -14,16 +14,13 @@ const navItems = [
   { href: "/admin/customers", label: "Customers", icon: Users },
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
+function SidebarContent({ pathname, setOpen }: { pathname: string; setOpen: (open: boolean) => void }) {
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";
     return pathname.startsWith(href);
   };
 
-  const SidebarContent = () => (
+  return (
     <nav className="space-y-1">
       <Link href="/" className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
         <ArrowLeft className="h-4 w-4" /> Back to Store
@@ -44,6 +41,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ))}
     </nav>
   );
+}
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -52,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <aside className="hidden lg:block w-56 flex-shrink-0">
           <div className="sticky top-24">
             <h2 className="text-lg font-bold mb-6">Admin Panel</h2>
-            <SidebarContent />
+            <SidebarContent pathname={pathname} setOpen={setOpen} />
           </div>
         </aside>
 
@@ -69,7 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <SheetTitle>Admin Panel</SheetTitle>
               </SheetHeader>
               <div className="mt-6">
-                <SidebarContent />
+                <SidebarContent pathname={pathname} setOpen={setOpen} />
               </div>
             </SheetContent>
           </Sheet>

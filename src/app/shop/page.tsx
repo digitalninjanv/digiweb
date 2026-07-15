@@ -28,6 +28,7 @@ function ShopContent() {
   const pageSize = 12;
 
   const fetchProducts = useCallback(async () => {
+    await Promise.resolve();
     setLoading(true);
     const supabase = createClient();
     let query = supabase
@@ -47,7 +48,10 @@ function ShopContent() {
   }, [page, search, activeCategory]);
 
   useEffect(() => {
-    fetchProducts();
+    const timer = setTimeout(() => {
+      fetchProducts();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchProducts]);
 
   useEffect(() => {

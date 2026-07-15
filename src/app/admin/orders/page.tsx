@@ -20,10 +20,6 @@ export default function AdminOrdersPage() {
   const [filter, setFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
   const fetchOrders = () => {
     const supabase = createClient();
     supabase.from("orders").select("*, customer:profiles(full_name, email), items:order_items(*)").order("created_at", { ascending: false }).then(({ data }) => {
@@ -31,6 +27,10 @@ export default function AdminOrdersPage() {
       setLoading(false);
     });
   };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
   const updateStatus = async (orderId: string, status: string) => {
     const supabase = createClient();
