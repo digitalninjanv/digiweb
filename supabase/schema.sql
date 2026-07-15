@@ -39,6 +39,17 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Helper function to check if user is admin (runs with SECURITY DEFINER to bypass RLS recursion)
+CREATE OR REPLACE FUNCTION public.is_admin(user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = user_id AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ============================================
 -- 2. CATEGORIES
 -- ============================================
@@ -251,29 +262,30 @@ ALTER TABLE public.payment_methods ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Admin view all profiles" ON public.profiles FOR SELECT USING (
-  (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' OR 
-  (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+  public.is_admin(auth.uid())
 );
 
 -- Categories: public read, admin write
 CREATE POLICY "Categories public read" ON public.categories FOR SELECT USING (true);
 CREATE POLICY "Admin manage categories" ON public.categories FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  public.is_admin(auth.uid())
 );
 
 -- Products: public read active, admin/seller manage
 CREATE POLICY "Products public read active" ON public.products FOR SELECT USING (status = 'active' OR seller_id = auth.uid());
 CREATE POLICY "Admin manage products" ON public.products FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  public.is_admin(auth.uid())
 );
 CREATE POLICY "Seller manage own products" ON public.products FOR ALL USING (seller_id = auth.uid());
 
 -- Product Files: read with purchase, admin manage
 CREATE POLICY "Product files public read" ON public.product_files FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.products WHERE id = product_id AND status = 'active')
+  (order_id IS NULL AND EXISTS (SELECT 1 FROM public.products WHERE id = product_id AND status = 'active')) OR
+  (order_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.orders WHERE id = order_id AND customer_id = auth.uid())) OR
+  public.is_admin(auth.uid())
 );
 CREATE POLICY "Admin manage product files" ON public.product_files FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  public.is_admin(auth.uid())
 );
 
 -- Orders: users see own orders, admin sees all
@@ -281,7 +293,7 @@ CREATE POLICY "Users view own orders" ON public.orders FOR SELECT USING (custome
 CREATE POLICY "Users create orders" ON public.orders FOR INSERT WITH CHECK (customer_id = auth.uid());
 CREATE POLICY "Users update own orders" ON public.orders FOR UPDATE USING (customer_id = auth.uid());
 CREATE POLICY "Admin manage orders" ON public.orders FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  public.is_admin(auth.uid())
 );
 
 -- Order Items: with order access
@@ -292,13 +304,13 @@ CREATE POLICY "Users create order items" ON public.order_items FOR INSERT WITH C
   EXISTS (SELECT 1 FROM public.orders WHERE id = order_id AND customer_id = auth.uid())
 );
 CREATE POLICY "Admin manage order items" ON public.order_items FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  public.is_admin(auth.uid())
 );
 
 -- Purchases: users see own
 CREATE POLICY "Users view own purchases" ON public.purchases FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY "Admin manage purchases" ON public.purchases FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  public.is_admin(auth.uid())
 );
 
 -- Cart: users manage own cart
@@ -307,7 +319,7 @@ CREATE POLICY "Users manage own cart" ON public.cart_items FOR ALL USING (user_i
 -- Payment Methods: public read, admin write
 CREATE POLICY "Payment methods public read" ON public.payment_methods FOR SELECT USING (is_active = true);
 CREATE POLICY "Admin manage payment methods" ON public.payment_methods FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  public.is_admin(auth.uid())
 );
 
 -- ============================================
@@ -324,19 +336,13 @@ CREATE POLICY "Product images public read" ON storage.objects FOR SELECT
   USING (bucket_id = 'products');
 
 CREATE POLICY "Admin upload product images" ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'products' AND (
-    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' OR 
-    (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
-  ));
+  WITH CHECK (bucket_id = 'products' AND public.is_admin(auth.uid()));
 
 CREATE POLICY "Product files download with auth" ON storage.objects FOR SELECT
   USING (bucket_id = 'product-files' AND auth.role() = 'authenticated');
 
 CREATE POLICY "Admin upload product files" ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'product-files' AND (
-    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' OR 
-    (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
-  ));
+  WITH CHECK (bucket_id = 'product-files' AND public.is_admin(auth.uid()));
 
 CREATE POLICY "Users upload payment proofs" ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'payment-proofs' AND auth.role() = 'authenticated');
