@@ -47,11 +47,13 @@ export function Header() {
     router.refresh();
   };
 
+  const isAdmin = profile?.role === "admin" || user?.app_metadata?.role === "admin" || user?.user_metadata?.role === "admin";
+
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/shop", label: "Shop" },
     ...(user ? [{ href: "/library", label: "Library" }] : []),
-    ...(profile?.role === "admin" ? [{ href: "/admin", label: "Admin" }] : []),
+    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
   const isActive = (href: string) => {
@@ -145,7 +147,7 @@ export function Header() {
                 <DropdownMenuItem onClick={() => router.push("/library")}>
                   <Package className="mr-2 h-4 w-4" /> My Purchases
                 </DropdownMenuItem>
-                {profile?.role === "admin" && (
+                {isAdmin && (
                   <DropdownMenuItem onClick={() => router.push("/admin")}>
                     <LayoutDashboard className="mr-2 h-4 w-4" /> Admin Dashboard
                   </DropdownMenuItem>
@@ -199,7 +201,7 @@ export function Header() {
                   </>
                 ) : (
                   <>
-                    {profile?.role === "admin" && (
+                    {isAdmin && (
                       <Link href="/admin" onClick={() => setMobileOpen(false)}>
                         <Button variant="outline" className="w-full justify-start">
                           <LayoutDashboard className="mr-2 h-4 w-4" /> Admin Dashboard

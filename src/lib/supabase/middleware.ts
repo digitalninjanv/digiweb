@@ -37,13 +37,29 @@ export async function updateSession(request: NextRequest) {
       url.searchParams.set("redirect", request.nextUrl.pathname);
       return NextResponse.redirect(url);
     }
-    // Check admin role via profile
-    const { data: profile } = await supabase
+    // Check admin role via profile and user metadata
+    const { data: profile, error } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
-    if (profile?.role !== "admin") {
+
+    const appMetadataRole = user.app_metadata?.role;
+    const userMetadataRole = user.user_metadata?.role;
+    const dbRole = profile?.role;
+    const isAdmin = dbRole === "admin" || appMetadataRole === "admin" || userMetadataRole === "admin";
+
+    console.log("Admin Access Attempt:", {
+      userId: user.id,
+      userEmail: user.email,
+      dbRole,
+      appMetadataRole,
+      userMetadataRole,
+      isAdmin,
+      error: error ? error.message : null
+    });
+
+    if (!isAdmin) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);
