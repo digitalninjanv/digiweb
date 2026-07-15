@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { createAdminClient } from "./admin";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -37,16 +38,26 @@ export async function updateSession(request: NextRequest) {
       url.searchParams.set("redirect", request.nextUrl.pathname);
       return NextResponse.redirect(url);
     }
-    // Check admin role via profile and user metadata
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    // Check admin role via profile (using admin client to bypass RLS in middleware context) and user metadata
+    let dbRole = undefined;
+    let dbError = null;
+
+    try {
+      const adminSupabase = createAdminClient();
+      const { data: profile, error } = await adminSupabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      dbRole = profile?.role;
+      dbError = error;
+    } catch (e: any) {
+      console.error("Admin client check failed:", e);
+      dbError = e;
+    }
 
     const appMetadataRole = user.app_metadata?.role;
     const userMetadataRole = user.user_metadata?.role;
-    const dbRole = profile?.role;
     const isAdmin = dbRole === "admin" || appMetadataRole === "admin" || userMetadataRole === "admin";
 
     console.log("Admin Access Attempt:", {
@@ -56,7 +67,7 @@ export async function updateSession(request: NextRequest) {
       appMetadataRole,
       userMetadataRole,
       isAdmin,
-      error: error ? error.message : null
+      error: dbError ? (dbError.message || dbError) : null
     });
 
     if (!isAdmin) {
