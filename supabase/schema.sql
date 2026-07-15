@@ -323,13 +323,19 @@ CREATE POLICY "Product images public read" ON storage.objects FOR SELECT
   USING (bucket_id = 'products');
 
 CREATE POLICY "Admin upload product images" ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'products' AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (bucket_id = 'products' AND (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' OR 
+    (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+  ));
 
 CREATE POLICY "Product files download with auth" ON storage.objects FOR SELECT
   USING (bucket_id = 'product-files' AND auth.role() = 'authenticated');
 
 CREATE POLICY "Admin upload product files" ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'product-files' AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (bucket_id = 'product-files' AND (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' OR 
+    (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+  ));
 
 CREATE POLICY "Users upload payment proofs" ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'payment-proofs' AND auth.role() = 'authenticated');

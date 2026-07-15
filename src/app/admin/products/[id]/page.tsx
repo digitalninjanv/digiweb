@@ -90,28 +90,48 @@ export default function AdminProductEditPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
-    if (!fileList) return;
+    if (!fileList || fileList.length === 0) return;
     const supabase = createClient();
-    for (const file of Array.from(fileList)) {
-      const path = `products/${Date.now()}-${file.name}`;
-      const { data } = await supabase.storage.from("products").upload(path, file);
-      if (data) {
-        const { data: urlData } = supabase.storage.from("products").getPublicUrl(data.path);
-        setImages((prev) => [...prev, urlData.publicUrl]);
+    toast.loading("Uploading images...", { id: "image-upload" });
+    try {
+      const newImages: string[] = [];
+      for (const file of Array.from(fileList)) {
+        const path = `products/${Date.now()}-${file.name}`;
+        const { data, error } = await supabase.storage.from("products").upload(path, file);
+        if (error) throw error;
+        if (data) {
+          const { data: urlData } = supabase.storage.from("products").getPublicUrl(data.path);
+          newImages.push(urlData.publicUrl);
+        }
       }
+      setImages((prev) => [...prev, ...newImages]);
+      toast.success("Images uploaded successfully!", { id: "image-upload" });
+    } catch (err: any) {
+      console.error("Image upload error:", err);
+      toast.error(err.message || "Failed to upload images.", { id: "image-upload" });
     }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
-    if (!fileList) return;
+    if (!fileList || fileList.length === 0) return;
     const supabase = createClient();
-    for (const file of Array.from(fileList)) {
-      const path = `files/${Date.now()}-${file.name}`;
-      const { data } = await supabase.storage.from("product-files").upload(path, file);
-      if (data) {
-        setFiles((prev) => [...prev, { name: file.name, url: data.path, type: "upload" }]);
+    toast.loading("Uploading files...", { id: "file-upload" });
+    try {
+      const newFiles: { name: string; url: string; type: "upload" }[] = [];
+      for (const file of Array.from(fileList)) {
+        const path = `files/${Date.now()}-${file.name}`;
+        const { data, error } = await supabase.storage.from("product-files").upload(path, file);
+        if (error) throw error;
+        if (data) {
+          newFiles.push({ name: file.name, url: data.path, type: "upload" });
+        }
       }
+      setFiles((prev) => [...prev, ...newFiles]);
+      toast.success("Files uploaded successfully!", { id: "file-upload" });
+    } catch (err: any) {
+      console.error("File upload error:", err);
+      toast.error(err.message || "Failed to upload files.", { id: "file-upload" });
     }
   };
 
